@@ -65,11 +65,22 @@ async function run() {
             res.send(result);
         })
 
+        app.get('/classes', async (req, res) => {
+            const query = { status: 'approved' };
+            const result = await classesCollections.find().toArray();
+            res.send(result);
+        })
 
 
+        //get classes by instructoers email
 
 
-
+        app.get('/classes/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { instructorEmail: email };
+            const result = await classesCollection.find(query).toArray();
+            res.send(result);
+        });
 
 
 
@@ -124,3 +135,14 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)
 })
+
+
+
+
+
+
+
+
+
+
+

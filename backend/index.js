@@ -119,6 +119,68 @@ res.send(result);
 
 
 
+//get approved classes
+
+
+app.get('/approved-classes', async(req,res)=>{
+
+    const query = { status: 'approved' };
+    const result = await classesCollection.find(query).toArray();
+    res.send(result);
+
+});
+
+
+//get signal class details 
+
+app.get('/class/:id', async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await classesCollections.findOne(query); // ✅ use correct variable
+    res.send(result);
+});
+
+
+
+//update class details all data
+
+
+app.put('/update-class/:id', async (req, res) => {
+    const id = req.params.id;
+    const updateClass = req.body;
+    const filter = {_id: new ObjectId(id)};
+    const options = { upsert: true };
+    const updateDoc = {
+    $set: {
+    name: updateClass.name,
+    description: updateClass.description,
+    price: updateClass.price,
+    availableSeats: parseInt(updateClass.availableSeats),
+    videoLink: updateClass.videoLink,
+    status: 'pending',
+    }
+    };
+    const result = await classesCollections.updateOne(filter, updateDoc, options);
+    res.send(result);
+
+    });
+
+
+
+//cart routes 
+
+
+app.post('/add-to-cart', async (req, res) =>{
+    const newCartItem = req.body;
+    const result = await cartCollections.insertOne(newCartItem);
+    res.send(result);
+
+    });
+
+
+//get cart items by id 
+
+
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });

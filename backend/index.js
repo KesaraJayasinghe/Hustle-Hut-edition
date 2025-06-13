@@ -1,7 +1,7 @@
 const express = require('express')
 const { connectToDatabase } = require('./database/mongoDb/db');
 const { authenticateUser } = require('./services/AuthService');
-const { getUserById } = require('./services/UserService');
+const { getUserById, getUserAttendanceByUserId} = require('./services/UserService');
 const { getBmiByUserId, addOrUpdateBmiRecord } = require('./services/BmiService');
 
 const app = express()
@@ -266,4 +266,14 @@ app.post('/bmi', async (req, res) => {
     }
 });
 
-
+app.get('/attendance/:userId', async (req, res) => {
+    try {
+        const attendance = await getUserAttendanceByUserId(req.params.userId);
+        if (!attendance) {
+            return res.status(404).json({ message: 'Attendance not found for this user' });
+        }
+        res.json(attendance);
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+});

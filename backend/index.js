@@ -1,15 +1,17 @@
 const express = require('express')
+const { connectToDatabase } = require('./database/mongoDb/db');
+const { authenticateUser } = require('./services/AuthService');
+const { getUserById } = require('./services/UserService');
+const { getBmiByUserId, addOrUpdateBmiRecord } = require('./services/BmiService');
+
 const app = express()
 const cors = require('cors');
 require('dotenv').config();
-const port = 3000
+const port = 8000
 // console.log("Db user name", process.env.DB_USER)
-
-
-
-
 app.use(cors());
 app.use(express.json())
+
 
 
 // // HustleHut-un,pw
@@ -231,14 +233,37 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)
 })
+// ✅ LOGIN route
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    const user = await authenticateUser(email, password);
+    if (!user) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    res.json({ message: 'Login successful', user });
+});
 
+// ✅ GET User by ID
+app.get('/user/:id', async (req, res) => {
+    const user = await getUserById(req.params.id);
+    if (!user) return res.status(404).send({ message: 'User not found' });
+    res.send(user);
+});
 
-
-
-
-
-
-
-
+// ✅ GET BMI by User ID
+app.get('/bmi/:userId', async (req, res) => {
+    const bmi = await getBmiByUserId(req.params.userId);
+    if (!bmi) return res.status(404).send({ message: 'BMI not found' });
+    res.send(bmi);
+});
+app.post('/bmi', async (req, res) => {
+    try {
+        const bmiData = req.body;
+        const result = await addOrUpdateBmiRecord(bmiData);
+        res.status(201).json({ message: 'BMI record added', insertedId: result.insertedId });
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to add BMI record', error: error.message });
+    }
+});
 
 

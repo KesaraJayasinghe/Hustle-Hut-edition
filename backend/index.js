@@ -1,7 +1,7 @@
 const express = require('express')
 const { connectToDatabase } = require('./database/mongoDb/db');
-const { authenticateUser } = require('./services/AuthService');
-const { getUserById, getUserAttendanceByUserId} = require('./services/UserService');
+const { authenticateUser, getUserNamesByIds} = require('./services/AuthService');
+const { getUserById, getUserAttendanceByUserId, markAttendanceIfNotExists} = require('./services/UserService');
 const { getBmiByUserId, addOrUpdateBmiRecord } = require('./services/BmiService');
 
 const app = express()
@@ -12,6 +12,29 @@ const port = 8000
 app.use(cors());
 app.use(express.json())
 
+// ADD MULTER CONFIGURATION HERE
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Setup multer to store in /uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = './uploads';
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+    }
+});
+const upload = multer({ storage });
+
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 // // HustleHut-un,pw
@@ -25,6 +48,10 @@ app.use(express.json())
 
 
 const { MongoClient, ServerApiVersion ,ObjectId } = require('mongodb');
+const {saveProgress, updateTrainerFeedback, getLatestProgressPerUser, getProgressByUserId, getAllProgressWithUserInfo,
+    getAllProgress
+} = require("./services/ProgressService");
+const {router} = require("express/lib/application");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.cizd92y.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -242,6 +269,22 @@ app.post('/login', async (req, res) => {
     }
     res.json({ message: 'Login successful', user });
 });
+// POST /users/names
+app.post('/users/names', async (req, res) => {
+    const { idList } = req.body;
+
+    if (!Array.isArray(idList) || idList.length === 0) {
+        return res.status(400).json({ message: 'Invalid or empty ID list provided' });
+    }
+
+    try {
+        const userNames = await getUserNamesByIds(idList);
+        res.json({ users: userNames });
+    } catch (err) {
+        console.error("Failed to fetch user names:", err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
 
 // ✅ GET User by ID
 app.get('/user/:id', async (req, res) => {
@@ -275,5 +318,102 @@ app.get('/attendance/:userId', async (req, res) => {
         res.json(attendance);
     } catch (err) {
         res.status(500).json({ message: 'Server error', error: err.message });
+    }
+});
+
+app.post('/progress', upload.array('images', 5), async (req, res) => {
+    try {
+        const { userId, description } = req.body;
+        const images = req.files.map(file => `/uploads/${file.filename}`); // Store as URLs
+
+        const result = await saveProgress(userId, images, description);
+        res.status(201).json(result);
+    } catch (err) {
+        console.error('Upload error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/progress/latest-per-user', async (req, res) => {
+    try {
+        const result = await getLatestProgressPerUser();
+        res.status(200).json(result);
+    } catch (err) {
+        console.error("Error in /progress/latest-per-user:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get("/progress/user/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const result = await getProgressByUserId(userId);
+
+        if (!result.length) {
+            return res.status(404).json({ message: "No progress found for this user." });
+        }
+
+        res.status(200).json(result);
+    } catch (err) {
+        console.error("Error in /progress/user/:userId:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// Update trainer feedback
+app.put('/progress/:progressId/feedback', async (req, res) => {
+    try {
+        const { progressId } = req.params;
+        const { schedule, comments } = req.body;
+        const result = await updateTrainerFeedback(progressId, schedule, comments);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all progress (simple)
+app.get('/progress', async (req, res) => {
+    try {
+        const progress = await getAllProgress();
+        res.json(progress);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all progress with user info (join)
+app.get('/progress-with-users', async (req, res) => {
+    try {
+        const progress = await getAllProgressWithUserInfo();
+        res.json(progress);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// Mark attendance (if not exists)
+app.post('/attendance/:userId/mark', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const message = await markAttendanceIfNotExists(userId);
+        res.json({ message });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.get('/progress/user/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const progress = await getProgressByUserId(userId);
+        res.json(progress);
+    } catch (err) {
+        console.error("Error fetching user progress:", err);
+        res.status(500).json({ message: "Failed to get progress for user" });
     }
 });

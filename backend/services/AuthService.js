@@ -1,6 +1,7 @@
 // services/authService.js
 const bcrypt = require('bcrypt');
 const { client } = require('../database/mongoDb/db');
+const {ObjectId} = require("mongodb");
 
 /**
  * Authenticates a user by email and password.
@@ -28,7 +29,23 @@ async function authenticateUser(email, password) {
         throw err;
     }
 }
+async function getUserNamesByIds(idList) {
+    try {
+        const userCollection = client.db("Cluster0").collection("user");
+        const objectIds = idList.map(id => new ObjectId(id));
 
+        const users = await userCollection.find(
+            { _id: { $in: objectIds } },
+            { projection: { name: 1 } }
+        ).toArray();
+
+        return users.map(user => ({ _id: user._id.toString(), name: user.name }));
+    } catch (err) {
+        console.error("Error fetching user names by IDs:", err);
+        throw err;
+    }
+}
 module.exports = {
-    authenticateUser
+    authenticateUser,
+    getUserNamesByIds
 };
